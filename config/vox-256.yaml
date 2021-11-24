@@ -85,3 +85,11 @@ visualizer_params:
   kp_size: 5
   draw_border: True
   colormap: 'gist_rainbow'
+
+animate_params:
+  num_pairs: 50
+  format: '.mp4'
+  normalization_params:
+    adapt_movement_scale: False
+    use_relative_movement: True
+    use_relative_jacobian: True
