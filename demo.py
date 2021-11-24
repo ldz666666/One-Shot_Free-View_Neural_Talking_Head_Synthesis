@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 from sync_batchnorm import DataParallelWithCallback
 
-from modules.generator import OcclusionAwareGenerator
+from modules.generator import OcclusionAwareGenerator, OcclusionAwareSPADEGenerator
 from modules.keypoint_detector import KPDetector, HEEstimator
 from animate import normalize_kp
 from scipy.spatial import ConvexHull
@@ -22,13 +22,18 @@ from scipy.spatial import ConvexHull
 if sys.version_info[0] < 3:
     raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
 
-def load_checkpoints(config_path, checkpoint_path, cpu=False):
+def load_checkpoints(config_path, checkpoint_path, gen, cpu=False):
 
     with open(config_path) as f:
         config = yaml.load(f)
 
-    generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                        **config['model_params']['common_params'])
+    if gen == 'original':
+        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
+    elif gen == 'spade':
+        generator = OcclusionAwareSPADEGenerator(**config['model_params']['generator_params'],
+                                                 **config['model_params']['common_params'])
+
     if not cpu:
         generator.cuda()
 
@@ -72,7 +77,8 @@ def headpose_pred_to_degree(pred):
 
     return degree
 
-
+'''
+# beta version
 def get_rotation_matrix(yaw, pitch, roll):
     yaw = yaw / 180 * 3.14
     pitch = pitch / 180 * 3.14
@@ -129,7 +135,6 @@ def get_rotation_matrix(yaw, pitch, roll):
     rot_mat = torch.einsum('bij,bjk,bkm->bim', pitch_mat, yaw_mat, roll_mat)
 
     return rot_mat
-'''
 
 def keypoint_transformation(kp_canonical, he, estimate_jacobian=True, free_view=False, yaw=0, pitch=0, roll=0):
     kp = kp_canonical['value']
@@ -178,7 +183,6 @@ def keypoint_transformation(kp_canonical, he, estimate_jacobian=True, free_view=
 
     return {'value': kp_transformed, 'jacobian': jacobian_transformed}
 
-
 def make_animation(source_image, driving_video, generator, kp_detector, he_estimator, relative=True, adapt_movement_scale=True, estimate_jacobian=True, cpu=False, free_view=False, yaw=0, pitch=0, roll=0):
     with torch.no_grad():
         predictions = []
@@ -202,8 +206,7 @@ def make_animation(source_image, driving_video, generator, kp_detector, he_estim
             kp_driving = keypoint_transformation(kp_canonical, he_driving, estimate_jacobian, free_view=free_view, yaw=yaw, pitch=pitch, roll=roll)
             kp_norm = normalize_kp(kp_source=kp_source, kp_driving=kp_driving,
                                    kp_driving_initial=kp_driving_initial, use_relative_movement=relative,
-                                   use_relative_jacobian=(estimate_jacobian&relative),
-                                   adapt_movement_scale=adapt_movement_scale)
+                                   use_relative_jacobian=estimate_jacobian, adapt_movement_scale=adapt_movement_scale)
             out = generator(source, kp_source=kp_source, kp_driving=kp_norm)
 
             predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
@@ -242,6 +245,8 @@ if __name__ == "__main__":
     parser.add_argument("--source_image", default='', help="path to source image")
     parser.add_argument("--driving_video", default='', help="path to driving video")
     parser.add_argument("--result_video", default='', help="path to output")
+
+    parser.add_argument("--gen", default="spade", choices=["original", "spade"])
  
     parser.add_argument("--relative", dest="relative", action="store_true", help="use relative or absolute keypoint coordinates")
     parser.add_argument("--adapt_scale", dest="adapt_scale", action="store_true", help="adapt movement scale based on convex hull of keypoints")
@@ -279,8 +284,8 @@ if __name__ == "__main__":
 
     source_image = resize(source_image, (256, 256))[..., :3]
     driving_video = [resize(frame, (256, 256))[..., :3] for frame in driving_video]
-    generator, kp_detector, he_estimator = load_checkpoints(config_path=opt.config, checkpoint_path=opt.checkpoint, cpu=opt.cpu)
-    
+    generator, kp_detector, he_estimator = load_checkpoints(config_path=opt.config, checkpoint_path=opt.checkpoint, gen=opt.gen, cpu=opt.cpu)
+
     with open(opt.config) as f:
         config = yaml.load(f)
     estimate_jacobian = config['model_params']['common_params']['estimate_jacobian']
@@ -300,4 +305,3 @@ if __name__ == "__main__":
     print(predictions)
     print(len(predictions))
     imageio.mimsave(opt.result_video, [img_as_ubyte(frame) for frame in predictions], fps=fps)
-

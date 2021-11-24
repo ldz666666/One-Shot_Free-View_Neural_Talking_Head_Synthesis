@@ -135,7 +135,8 @@ def headpose_pred_to_degree(pred):
 
     return degree
 
-
+'''
+# beta version
 def get_rotation_matrix(yaw, pitch, roll):
     yaw = yaw / 180 * 3.14
     pitch = pitch / 180 * 3.14
@@ -163,8 +164,8 @@ def get_rotation_matrix(yaw, pitch, roll):
     rot_mat = torch.einsum('bij,bjk,bkm->bim', roll_mat, pitch_mat, yaw_mat)
 
     return rot_mat
-
 '''
+
 def get_rotation_matrix(yaw, pitch, roll):
     yaw = yaw / 180 * 3.14
     pitch = pitch / 180 * 3.14
@@ -192,7 +193,6 @@ def get_rotation_matrix(yaw, pitch, roll):
     rot_mat = torch.einsum('bij,bjk,bkm->bim', pitch_mat, yaw_mat, roll_mat)
 
     return rot_mat
-'''
 
 def keypoint_transformation(kp_canonical, he, estimate_jacobian=True):
     kp = kp_canonical['value']    # (bs, k, 3)
@@ -223,7 +223,6 @@ def keypoint_transformation(kp_canonical, he, estimate_jacobian=True):
         jacobian_transformed = None
 
     return {'value': kp_transformed, 'jacobian': jacobian_transformed}
-
 
 class GeneratorFullModel(torch.nn.Module):
     """
@@ -289,7 +288,7 @@ class GeneratorFullModel(torch.nn.Module):
                 for i, weight in enumerate(self.loss_weights['perceptual']):
                     value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
                     value_total += self.loss_weights['perceptual'][i] * value
-                loss_values['perceptual'] = value_total
+            loss_values['perceptual'] = value_total
 
         if self.loss_weights['generator_gan'] != 0:
             discriminator_maps_generated = self.discriminator(pyramide_generated)

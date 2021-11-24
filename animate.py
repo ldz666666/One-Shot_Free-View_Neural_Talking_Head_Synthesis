@@ -11,7 +11,6 @@ import numpy as np
 
 from sync_batchnorm import DataParallelWithCallback
 
-
 def normalize_kp(kp_source, kp_driving, kp_driving_initial, adapt_movement_scale=False,
                  use_relative_movement=False, use_relative_jacobian=False):
     if adapt_movement_scale:
